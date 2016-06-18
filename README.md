@@ -20,7 +20,7 @@ Unfortunately fetching all of the sync chunks can be slow, mainly due to
 Evernote's rate limiting. The [`getFilteredSyncChunk`](https://dev.evernote.com/doc/reference/NoteStore.html#Fn_NoteStore_getFilteredSyncChunk) method is used to download the chunks.
 
 I've experienced as bad as a 1500 second (25
-minute) forced cooldown delay after fetching only 167 (effectively 0.3%) of my account's chunks in an 11 minute time period. A long-term active account (e.g.
+minute) forced cooldown delay after fetching only 167 (effectively 0.3%) of my account's chunks in an 11 minute time period with 1.5s delay beteween requests. A long-term active account (e.g.
 mine) can have 50,000+ chunks.
 
 ## Getting an Evernote developer token
@@ -29,15 +29,15 @@ Visit [this page](https://sandbox.evernote.com/api/DeveloperToken.action) and gr
 
 ## Using `jicksta/sync-evernote` with only Docker
 
-To start the synchronizer once you [install Docker](https://docs.docker.com/mac/step_one/), simple run...
+To start the synchronizer once you [install Docker](https://docs.docker.com/mac/step_one/), simply run...
 
 ```bash
 EVERNOTE_DEV_TOKEN="S=s3:U=2…" docker run --name sync-evernote -d jicksta/sync-evernote -e "EVERNOTE_DEV_TOKEN=$EVERNOTE_DEV_TOKEN" -v $PWD/data:/mnt/sync-evernote/data
 docker logs -f sync-evernote
 ```
 
-This will write `.json` and `.yml` files into the `data` directory of
-your.
+This will auto-pull the image and write `.json` and `.yml` files into the `data` directory of
+your working dir.
 
 ## Using `jicksta/sync-evernote` without Docker
 
@@ -84,6 +84,14 @@ You can view the Thrift-generated HTML API documentation [here](https://dev.ever
 
 ## Future
 
+Must-haves:
+
 * Save note bodies
+* Watcher mode: poll for newer chunks, fetch those first
+
+Nice-to-haves:
+
+* Auto-compression
 * Refactor using [ActiveJob](https://github.com/rails/rails/tree/master/activejob)?
-* Support more params as optional ENV variables
+* Support more params as optional ENV variables?
+
