@@ -116,6 +116,8 @@ class SyncEvernote
     retries.next && retry
   rescue Errno::ECONNRESET
     retries.next && retry
+  rescue SocketError
+    retries.next && retry
   rescue StopIteration
     @log.error "Failed to fetch chunk #{chunk} after #{retries.count} attempts"
     nil
