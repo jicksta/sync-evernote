@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
-require_relative 'sync_evernote'
-require_relative 'sync_serializer'
+require_relative './src/sync_evernote'
+require_relative './src/sync_serializer'
 
 AUTH_TOKEN = ENV["EVERNOTE_DEV_TOKEN"] # https://sandbox.evernote.com/api/DeveloperToken.action
 abort "Gotta set EVERNOTE_DEV_TOKEN in your env" if AUTH_TOKEN.blank?
