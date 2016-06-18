@@ -1,11 +1,6 @@
-FROM python:2
-
-RUN pip install evernote pyaml
-
-RUN mkdir /chunks /worker
-VOLUME /chunks
-WORKDIR /worker
-
+FROM ruby
+WORKDIR /mnt/sync-evernote
+COPY Gemfile .
+RUN bundle install
 COPY . .
-
-CMD python synchronizer.py
+ENTRYPOINT $PWD/entrypoint.rb
