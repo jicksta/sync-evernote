@@ -12,6 +12,8 @@ Thrift objects.
 
 This system does not download note bodies, yet. Coming soon!
 
+No data is written to your Evernote account by this synchronizer -- only reads.
+
 ## A note on performance
 
 Unfortunately fetching all of the sync chunks can be slow, mainly due to
@@ -23,10 +25,7 @@ mine) can have 50,000+ chunks.
 
 ## Getting an Evernote developer token
 
-Visit [this page](https://sandbox.evernote.com/api/DeveloperToken.action) and grab a production key. By default, the synchronizer does NOT use your Evernote developer sandbox account since sandbox data is rarely useful to fetch and save.
-
-You may have to submit a ticket to their developer support folks to get your
-account flagged for permission to access non-sandbox data.
+Visit [this page](https://sandbox.evernote.com/api/DeveloperToken.action) and grab a developer key. By default, the synchronizer does NOT use your Evernote developer sandbox account since sandbox data is rarely useful to fetch and save. You will probably have to [activate your API key](https://dev.evernote.com/support/) to grant access to your personal non-sandbox account.
 
 ## Using `jicksta/sync-evernote` with only Docker
 
