@@ -1,4 +1,12 @@
 #!/bin/bash
 cd `dirname $0`/../
+
 scripts/build
+
 docker push jicksta/sync-evernote:latest
+if [[ "$#" == 1 ]]; then
+  TAG=$1
+  docker push jicksta/sync-evernote:$TAG
+  git tag $TAG
+  git push --tags
+fi
