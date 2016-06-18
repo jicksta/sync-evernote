@@ -105,7 +105,7 @@ class SyncEvernote
 
   def fetch_chunk_by_number(chunk)
     retries ||= 5.times.each
-    @log.info "Fetching chunk #{chunk}"
+    @log.info "Fetching chunk: #{chunk}"
     note_store.getFilteredSyncChunk(@auth_token, chunk-1, 2147483647, sync_chunk_filter)
   rescue EDAMSystemException => e
     if e.errorCode == RATE_LIMIT_REACHED
@@ -122,7 +122,7 @@ class SyncEvernote
   end
 
   def sleep(seconds)
-    @log.debug "sleep(%.2f)" % seconds
+    @log.debug "sleep( %.2f )" % seconds
     super
   end
 
