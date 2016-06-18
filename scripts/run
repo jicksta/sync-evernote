@@ -9,4 +9,5 @@ docker run -it --rm -v $PWD/data:/mnt/sync-evernote/data \
                     -v $PWD/log:/mnt/sync-evernote/log \
                     -e "EVERNOTE_DEV_TOKEN=$EVERNOTE_DEV_TOKEN" \
                     --name sync-evernote \
+                    $@ \
                     $IMAGEUSER/sync-evernote:latest
