@@ -52,8 +52,38 @@ bundle install
 ruby entrypoint.rb
 ```
 
+This is what the output will look like:
+
+    $ ruby entrypoint.rb
+    I, [2016-06-18T15:39:29.431344 #55451]  INFO -- : Saved resource: notebooks
+    I, [2016-06-18T15:39:30.044707 #55451]  INFO -- : Number of chunks: 53343
+    I, [2016-06-18T15:39:30.593545 #55451]  INFO -- : Fetching chunk: 48333
+    I, [2016-06-18T15:39:32.027334 #55451]  INFO -- : Saved resource: 48333
+    D, [2016-06-18T15:39:32.027380 #55451] DEBUG -- : sleep( 1.50 )
+    I, [2016-06-18T15:39:33.528143 #55451]  INFO -- : Fetching chunk: 48332
+    I, [2016-06-18T15:39:35.079728 #55451]  INFO -- : Saved resource: 48332
+    D, [2016-06-18T15:39:35.079772 #55451] DEBUG -- : sleep( 1.50 )
+    I, [2016-06-18T15:39:36.584051 #55451]  INFO -- : Fetching chunk: 48331
+    I, [2016-06-18T15:39:38.038305 #55451]  INFO -- : Saved resource: 48331
+    D, [2016-06-18T15:39:38.038347 #55451] DEBUG -- : sleep( 1.50 )
+    I, [2016-06-18T15:39:39.541568 #55451]  INFO -- : Fetching chunk: 48330
+    I, [2016-06-18T15:39:41.137313 #55451]  INFO -- : Saved resource: 48330
+    D, [2016-06-18T15:39:41.137353 #55451] DEBUG -- : sleep( 1.50 )
+    I, [2016-06-18T15:39:42.639847 #55451]  INFO -- : Fetching chunk: 48329
+    I, [2016-06-18T15:39:44.051257 #55451]  INFO -- : Saved resource: 48329
+    D, [2016-06-18T15:39:44.051320 #55451] DEBUG -- : sleep( 1.50 )
+    ^C
+    Received INT. Exiting (0)
+
+
 ## Implementation notes
 
 This project uses the official [`evernote-thrift`](https://github.com/evernote/evernote-thrift) RubyGem.
 
 You can view the Thrift-generated HTML API documentation [here](https://dev.evernote.com/doc/reference/).
+
+## Future
+
+* Save note bodies
+* Refactor using [ActiveJob](https://github.com/rails/rails/tree/master/activejob)?
+* Support more params as optional ENV variables
