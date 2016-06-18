@@ -1,4 +1,6 @@
 # require "json"
+require "tempfile"
+require "fileutils"
 require "active_support/json"
 require "base64"
 require "yaml"
@@ -30,12 +32,17 @@ class SyncSerializer
 
   def save_into(dir)
     raise ArgumentError unless dir.kind_of? Pathname
-    write_file(dir / json_filename, to_json)
-    write_file(dir / thrift_serialized_filename, to_serialized_thrift)
+    *files = write_file(dir / json_filename, to_json),
+             write_file(dir / thrift_serialized_filename, to_serialized_thrift)
+    files.each(&:move!)
   end
 
-  def write_file(path, data)
-    path.open("w+") { |f| f.write data }
+  def write_file(final_path, data)
+    Tempfile.new(File.basename(final_path)).tap do |tempfile|
+      tempfile.write data
+      tempfile.close
+      tempfile.define_singleton_method(:move!) { FileUtils.mv(path, final_path) }
+    end
   end
 
   def json_filename

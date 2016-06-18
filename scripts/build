@@ -1,0 +1,4 @@
+#!/bin/bash
+cd `dirname $0`/../
+IMAGEUSER=jicksta
+docker build -t $IMAGEUSER/sync-evernote:latest $@ .

@@ -1,0 +1,12 @@
+#!/bin/bash
+cd `dirname $0`/../
+scripts/build
+
+# echo Using Developer Token $EVERNOTE_DEV_TOKEN
+
+IMAGEUSER=jicksta
+docker run -it --rm -v $PWD/data:/mnt/sync-evernote/data \
+                    -v $PWD/log:/mnt/sync-evernote/log \
+                    -e "EVERNOTE_DEV_TOKEN=$EVERNOTE_DEV_TOKEN" \
+                    --name sync-evernote \
+                    $IMAGEUSER/sync-evernote:latest
