@@ -1,15 +1,16 @@
 # jicksta/sync-evernote
+## For the note-taking data hackers
 
-Given a Evernote developer token, this Docker container will idempotently fetch the following datasets from your Evernote account:
+Given a Evernote developer token, this Docker container will progressively and idempotently fetch the following datasets from your Evernote account:
 
 * All sync chunks (including notes, notebooks)
 * A simple list of notebooks
 
-Files are saved into the `data/` volume as JSON and "lossless" YAML-serialized Thrift objects.
+Files are saved into the `/mnt/sync-evernote/data` volume as JSON and YAML-marshalled Thrift Ruby objects.
 
-This system does not download note bodies, yet. Coming soon!
+*This system does not download note bodies, yet. Coming soon!*
 
-No data is written to your Evernote account by this synchronizer -- only reads.
+This code does not use any write APIs; it only ever reads.
 
 ## A note on performance
 
@@ -23,11 +24,12 @@ Visit [this page](https://sandbox.evernote.com/api/DeveloperToken.action) and gr
 
 ## Using `jicksta/sync-evernote` with only Docker
 
-To start the synchronizer once you [install Docker](https://docs.docker.com/mac/step_one/), simply run...
+First, you'll need to [install Docker](https://docs.docker.com/mac/step_one/) if you haven't already. Alternatively, if you wanted to run this on a paid cloud hosting provider, you could use DigitalOcean's "One-click-App" for a Docker-configured Linux machine and have this running with `docker -d` in the background in the cloud.
+
+From the Docker CLI tool, you can run the following command to download and run the worker.
 
 ```bash
-EVERNOTE_DEV_TOKEN="S=s3:U=2…" docker run --name sync-evernote -d jicksta/sync-evernote -e "EVERNOTE_DEV_TOKEN=$EVERNOTE_DEV_TOKEN" -v $PWD/data:/mnt/sync-evernote/data
-docker logs -f sync-evernote
+docker run --name sync-evernote --rm jicksta/sync-evernote -e "EVERNOTE_DEV_TOKEN=S=s3:U=2…" -v $PWD/data:/mnt/sync-evernote/data
 ```
 
 This will auto-pull the image and write `.json` and `.yml` files into the `data` directory of your working dir.
@@ -44,7 +46,7 @@ bundle install
 ruby entrypoint.rb
 ```
 
-This is what the output will look like:
+This is what the output might look like:
 
     $ ruby entrypoint.rb
     I, [2016-06-18T15:39:29.431344 #55451]  INFO -- : Saved resource: notebooks
@@ -74,18 +76,24 @@ This project uses the official [`evernote-thrift`](https://github.com/evernote/e
 
 You can view the Thrift-generated HTML API documentation [here](https://dev.evernote.com/doc/reference/).
 
+Output files are first written to tempfiles within the container and then atomically moved into the volume when all tempfiles have been flushed and closed. This lets you rest easier killing the process.
+
+The Thrift responses contain a lot of binary fields, mainly checksums. All binary data is automatically sanitized to url-safe Base64 in the JSON files. The marshalled Ruby Thrift objects preserve the binary objects.
+
 ## Future
 
 Must-haves:
 
 * Save note bodies
-* Watcher mode: poll for newer chunks, fetch those first
-* Prioritize or exclude notebooks from sync
-* Delta event stream that can replay all activity efficiently
+* Save attachments' data, OCR data
+* Watcher mode: run in the background after full sync polling for newer chunks
 * Auto-detect missing chunks that are missing in the data
 
 Nice-to-haves:
 
-* Auto-compression
-* Refactor using [ActiveJob](https://github.com/rails/rails/tree/master/activejob)?
-* Support more params as optional ENV variables?
+* Delta event stream that can replay all activity efficiently (using RethinkDB)
+* Support saving to columnar, compressed file format (Parquet with JRuby)
+* Emit MQ messages with [ActiveJob](https://github.com/rails/rails/tree/master/activejob)
+* Support more params as optional ENV variables
+* Prioritize or exclude notebooks from sync
+* A separate `aws s3 sync` daemon container that links the `data` volume

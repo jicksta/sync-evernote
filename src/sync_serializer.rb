@@ -1,9 +1,8 @@
-# require "json"
 require "tempfile"
 require "fileutils"
-require "active_support/json"
 require "base64"
 require "yaml"
+require "active_support/json"
 
 class SyncSerializer
 
@@ -34,15 +33,7 @@ class SyncSerializer
     raise ArgumentError unless dir.kind_of? Pathname
     *files = write_file(dir / json_filename, to_json),
              write_file(dir / thrift_serialized_filename, to_serialized_thrift)
-    files.each(&:move!)
-  end
-
-  def write_file(final_path, data)
-    Tempfile.new(File.basename(final_path)).tap do |tempfile|
-      tempfile.write data
-      tempfile.close
-      tempfile.define_singleton_method(:move!) { FileUtils.mv(path, final_path) }
-    end
+    files.each(&:move!) # See write_file's singleton method definition
   end
 
   def json_filename
@@ -59,6 +50,16 @@ class SyncSerializer
 
   def to_serialized_thrift
     @resource.to_yaml
+  end
+
+  private
+
+  def write_file(final_path, data)
+    Tempfile.new(@resource_name).tap do |tempfile|
+      tempfile.write data
+      tempfile.close
+      tempfile.define_singleton_method(:move!) { FileUtils.mv(self.path, final_path) }
+    end
   end
 
 end

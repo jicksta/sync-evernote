@@ -3,14 +3,17 @@ cd `dirname $0`/../
 
 scripts/build
 
-echo Pushing :latest tag
-docker push jicksta/sync-evernote:latest
+echo Pushing jicksta/sync-evernote:latest
+docker push  jicksta/sync-evernote:latest
 
 if [[ "$#" == 1 ]]; then
   TAG=$1
+
   docker tag jicksta/sync-evernote:latest jicksta/sync-evernote:$TAG
-  echo Pushing :$TAG tag
-  docker push jicksta/sync-evernote:$TAG
-  git tag -f $TAG
-  git push --tags
+
+  echo Pushing jicksta/sync-evernote:$TAG
+  docker push  jicksta/sync-evernote:$TAG
+
+  git tag  -f $TAG
+  git push -f origin $TAG
 fi

@@ -6,4 +6,6 @@ legacy.py
 log/*
 .idea
 .git
-scripts/*
+scripts/build
+scripts/run
+scripts/push

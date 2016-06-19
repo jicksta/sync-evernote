@@ -1,16 +1,22 @@
-# require "digest/md5"
+require_relative './sync_serializer'
 require 'pathname'
-require 'evernote-thrift'
+require 'logger'
 require 'active_support'
 require 'active_support/core_ext'
-require 'logger'
+require 'evernote-thrift'
 
 class SyncEvernote
 
   MAX_RETRIES = 5
   INTERVAL_TIME = 1.5
 
-  def initialize(auth_token, dir: Pathname.new("data"), sandbox: true, logger: Logger.new(STDOUT))
+  def self.auth_token_from_env!
+    token = ENV["EVERNOTE_DEV_TOKEN"]
+    abort "Gotta set EVERNOTE_DEV_TOKEN in your env" if token.blank?
+    token
+  end
+
+  def initialize(auth_token: self.class.auth_token_from_env!, dir: Pathname.new("data"), sandbox: false, logger: default_logger)
     @auth_token, @dir, @log, @sandbox = auth_token, dir, logger, sandbox
     @evernote_host = @sandbox ? "sandbox.evernote.com" : "www.evernote.com"
     @user_store_url = "https://#{@evernote_host}/edam/user"
@@ -39,7 +45,9 @@ class SyncEvernote
   end
 
   def local_chunks
-    files_matching(basename: /^\d+$/).map { |f| File.basename(f, ".json").to_i }.sort
+    files_matching(basename: /^\d+$/).map do |f|
+      File.basename(f, ".json").to_i
+    end.sort!
   end
 
   def max_remote_chunk
@@ -49,11 +57,14 @@ class SyncEvernote
   end
 
   def newer_chunks
-    max_remote_chunk.downto local_chunks.max.next
+    max_local_chunk = local_chunks.max || 0
+    max_remote_chunk.downto max_local_chunk.next
   end
 
   def older_chunks
-    local_chunks.min.-(1).downto(1)
+    min_local_chunk = local_chunks.min
+    return [] if min_local_chunk.nil?
+    min_local_chunk.-(1).downto(1)
   end
 
   def needed_chunks(&block)
@@ -67,23 +78,51 @@ class SyncEvernote
 
   def chunks!
     needed_chunks do |chunk_number|
-      chunk = fetch_chunk_by_number chunk_number
-      next if chunk.nil?
-      save chunk_number, chunk
+      chunk! chunk_number
       sleep INTERVAL_TIME
     end
+  end
+
+  def chunk!(chunk_number)
+    save chunk_number, chunk(chunk_number)
+  end
+
+  def chunk(chunk)
+    retries ||= MAX_RETRIES.times.each # Use Enumerator to raise a StopIteration after MAX_RETRIES calls to `retries.next`
+    @log.info "Fetching chunk: #{chunk}"
+    note_store.getFilteredSyncChunk(@auth_token, chunk-1, 2147483647, sync_chunk_filter)
+  rescue EDAMSystemException => e
+    if e.errorCode == RATE_LIMIT_REACHED
+      mandatory_sleep_duration = e.rateLimitDuration
+      @log.warn "RATE_LIMIT_REACHED for chunk ##{chunk}: #{mandatory_sleep_duration} seconds"
+      sleep(mandatory_sleep_duration + 0.5)
+    else
+      @log.error "EDAMSystemException #{e.to_json}"
+      # abort "Got EDAMSystemException! #{e.to_json}"
+    end
+    retries.next && retry
+  rescue Errno::ECONNRESET
+    @log.warn "Errno::ECONNRESET getting chunk #{chunk}"
+    retries.next && retry
+  rescue SocketError
+    @log.warn "SocketError getting chunk #{chunk}"
+    retries.next && retry
+  rescue StopIteration
+    @log.error "Failed to fetch chunk #{chunk} after #{retries.count} attempts"
+    nil
+  end
+
+  def save(resource_name, resource)
+    return unless resource
+    SyncSerializer.new(resource_name.to_s, resource).save_into @dir
+    @log.info "Saved resource: #{resource_name}"
+    resource
   end
 
   private
 
   RATE_LIMIT_REACHED = Evernote::EDAM::Error::EDAMErrorCode::RATE_LIMIT_REACHED
   EDAMSystemException = Evernote::EDAM::Error::EDAMSystemException
-
-  def save(resource_name, resource)
-    SyncSerializer.new(resource_name.to_s, resource).save_into @dir
-    @log.info "Saved resource: #{resource_name}"
-    resource
-  end
 
   def files_matching(basename:nil, extension: ".json")
     Dir[@dir / "**/*#{extension}"].select do |filename|
@@ -113,26 +152,6 @@ class SyncEvernote
     @note_store_url ||= user_store.getNoteStoreUrl(@auth_token)
   end
 
-  def fetch_chunk_by_number(chunk)
-    retries ||= 5.times.each
-    @log.info "Fetching chunk: #{chunk}"
-    note_store.getFilteredSyncChunk(@auth_token, chunk-1, 2147483647, sync_chunk_filter)
-  rescue EDAMSystemException => e
-    if e.errorCode == RATE_LIMIT_REACHED
-      mandatory_sleep_duration = e.rateLimitDuration
-      @log.warn "RATE_LIMIT_REACHED for chunk ##{chunk}: #{mandatory_sleep_duration} seconds"
-      sleep(mandatory_sleep_duration + 0.5)
-    end
-    retries.next && retry
-  rescue Errno::ECONNRESET
-    retries.next && retry
-  rescue SocketError
-    retries.next && retry
-  rescue StopIteration
-    @log.error "Failed to fetch chunk #{chunk} after #{retries.count} attempts"
-    nil
-  end
-
   def sleep(seconds)
     @log.debug "sleep( %.2f )" % seconds
     super
@@ -152,6 +171,10 @@ class SyncEvernote
       includeNoteApplicationDataFullMap: true,
       includeResourceApplicationDataFullMap: true,
       includeNoteResourceApplicationDataFullMap: true
+  end
+
+  def default_logger
+    Logger.new(STDOUT).tap { |l| l.sev_threshold = Logger::WARN }
   end
 
 end
