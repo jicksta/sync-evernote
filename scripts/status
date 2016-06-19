@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+require_relative '../src/sync_evernote'
+require_relative '../src/sync_serializer'
+
+AUTH_TOKEN = ENV["EVERNOTE_DEV_TOKEN"] # https://sandbox.evernote.com/api/DeveloperToken.action
+abort "Gotta set EVERNOTE_DEV_TOKEN in your env" if AUTH_TOKEN.blank?
+
+sync = SyncEvernote.new(AUTH_TOKEN, sandbox: false)
+
+total_chunks = sync.max_remote_chunk
+local_chunks = sync.local_chunks.count
+
+percent_downloaded = (local_chunks.to_f / total_chunks.to_f) * 100
+
+puts
+puts "The sync is %.2f%% complete. ( %d / %d )" % [percent_downloaded, local_chunks, total_chunks]
+puts
