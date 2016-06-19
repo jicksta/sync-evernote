@@ -4,11 +4,17 @@ scripts/build
 
 # echo Using Developer Token $EVERNOTE_DEV_TOKEN
 
+EXTRA_PARAMS=$@
+
+if [[ "$#" == 0 ]]; then
+  echo 1>&2 scripts/run received neither --rm nor -d, assuming --rm
+  EXTRA_PARAMS=--rm
+fi
+
 IMAGEUSER=jicksta
 docker run -it -v $PWD/data:/mnt/sync-evernote/data \
                -v $PWD/log:/mnt/sync-evernote/log \
                -e "EVERNOTE_DEV_TOKEN=$EVERNOTE_DEV_TOKEN" \
                --name sync-evernote \
-               $@ \
+               $EXTRA_PARAMS \
                $IMAGEUSER/sync-evernote:latest
-

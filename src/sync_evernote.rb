@@ -20,6 +20,8 @@ class SyncEvernote
     @auth_token, @dir, @log, @sandbox = auth_token, dir, logger, sandbox
     @evernote_host = @sandbox ? "sandbox.evernote.com" : "www.evernote.com"
     @user_store_url = "https://#{@evernote_host}/edam/user"
+
+    confirm_version!
   end
 
   def confirm_version!
@@ -88,28 +90,10 @@ class SyncEvernote
   end
 
   def chunk(chunk)
-    retries ||= MAX_RETRIES.times.each # Use Enumerator to raise a StopIteration after MAX_RETRIES calls to `retries.next`
-    @log.info "Fetching chunk: #{chunk}"
-    note_store.getFilteredSyncChunk(@auth_token, chunk-1, 2147483647, sync_chunk_filter)
-  rescue EDAMSystemException => e
-    if e.errorCode == RATE_LIMIT_REACHED
-      mandatory_sleep_duration = e.rateLimitDuration
-      @log.warn "RATE_LIMIT_REACHED for chunk ##{chunk}: #{mandatory_sleep_duration} seconds"
-      sleep(mandatory_sleep_duration + 0.5)
-    else
-      @log.error "EDAMSystemException #{e.to_json}"
-      # abort "Got EDAMSystemException! #{e.to_json}"
+    thrift_attempt do
+      @log.info "Fetching chunk: #{chunk}"
+      note_store.getFilteredSyncChunk(@auth_token, chunk-1, 2147483647, sync_chunk_filter)
     end
-    retries.next && retry
-  rescue Errno::ECONNRESET
-    @log.warn "Errno::ECONNRESET getting chunk #{chunk}"
-    retries.next && retry
-  rescue SocketError
-    @log.warn "SocketError getting chunk #{chunk}"
-    retries.next && retry
-  rescue StopIteration
-    @log.error "Failed to fetch chunk #{chunk} after #{retries.count} attempts"
-    nil
   end
 
   def save(resource_name, resource)
@@ -124,6 +108,30 @@ class SyncEvernote
   RATE_LIMIT_REACHED = Evernote::EDAM::Error::EDAMErrorCode::RATE_LIMIT_REACHED
   EDAMSystemException = Evernote::EDAM::Error::EDAMSystemException
 
+  def thrift_attempt(max_retries: MAX_RETRIES)
+    retries ||= max_retries.times.each # Use Enumerator to raise a StopIteration after MAX_RETRIES calls to `retries.next`
+    yield
+  rescue EDAMSystemException => e
+    if e.errorCode == RATE_LIMIT_REACHED
+      mandatory_sleep_duration = e.rateLimitDuration
+      @log.warn "RATE_LIMIT_REACHED: sleeping #{mandatory_sleep_duration} seconds"
+      sleep(mandatory_sleep_duration + 0.5)
+    else
+      @log.warn "EDAMSystemException! #{e.inspect}"
+      # abort "Got EDAMSystemException! #{e.to_json}"
+    end
+    retries.next && retry
+  rescue Errno::ECONNRESET => e
+    @log.warn "Errno::ECONNRESET! #{e.inspect}"
+    retries.next && retry
+  rescue SocketError => e
+    @log.warn "SocketError! #{e.inspect}"
+    retries.next && retry
+  rescue StopIteration
+    @log.error "Failed to execute Thrift operation after #{retries.count} attempts!"
+    nil
+  end
+
   def files_matching(basename:nil, extension: ".json")
     Dir[@dir / "**/*#{extension}"].select do |filename|
       next unless filename.ends_with? extension
@@ -133,7 +141,7 @@ class SyncEvernote
   end
 
   def user_store
-    @user_store ||= begin
+    @user_store ||= thrift_attempt do
       http_transport = Thrift::HTTPClientTransport.new(@user_store_url)
       binary_protocol = Thrift::BinaryProtocol.new(http_transport)
       Evernote::EDAM::UserStore::UserStore::Client.new(binary_protocol)
@@ -141,7 +149,7 @@ class SyncEvernote
   end
 
   def note_store
-    @note_store ||= begin
+    @note_store ||= thrift_attempt do
       http_transport = Thrift::HTTPClientTransport.new(note_store_url)
       binary_protocol = Thrift::BinaryProtocol.new(http_transport)
       Evernote::EDAM::NoteStore::NoteStore::Client.new(binary_protocol)
