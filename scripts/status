@@ -13,3 +13,6 @@ percent_downloaded = 1.0 * furthest_chunk / total_chunks * 100
 puts
 puts "The sync is %.2f%% complete. ( %d / %d )" % [percent_downloaded, furthest_chunk, total_chunks]
 puts
+
+
+sync.max

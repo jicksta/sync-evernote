@@ -26,7 +26,7 @@ class SyncSerializer
 
   attr_reader :resource, :resource_name
   def initialize(resource_name, resource=nil, dir:)
-    @resource_name, @dir = resource_name, dir
+    @resource_name, @dir = resource_name.to_s, dir
     @resource = resource || unmarshal!
   end
 
@@ -42,7 +42,15 @@ class SyncSerializer
   end
 
   def thrift_serialized_filename
-    "#{@resource_name}.SyncChunk.yml"
+    "#{@resource_name}.ruby-thrift.yml"
+  end
+
+  def json_file?
+    @dir.join(json_filename).file?
+  end
+
+  def thrift_serialized_file?
+    @dir.join(thrift_serialized_filename).file?
   end
 
   def to_json
@@ -57,6 +65,8 @@ class SyncSerializer
 
   def unmarshal!
     YAML.load_file(@dir / thrift_serialized_filename)
+  rescue Errno::ENOENT
+    nil
   end
 
   def write_file(final_path, data)

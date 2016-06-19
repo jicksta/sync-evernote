@@ -1,4 +1,5 @@
 require_relative './sync_serializer'
+require 'set'
 require 'pathname'
 require 'logger'
 require 'active_support'
@@ -38,12 +39,11 @@ class SyncEvernote
     end
   end
 
-  def notebooks
-    note_store.listNotebooks(@auth_token)
-  end
-
-  def notebooks!
-    save :notebooks, notebooks
+  def save(resource_name, resource)
+    return unless resource
+    serializer(resource_name, resource).save!
+    @log.info "Saved resource: #{resource_name}"
+    resource
   end
 
   def saved_usns
@@ -54,30 +54,37 @@ class SyncEvernote
 
   def max_remote_usn
     count = note_store.getSyncState(@auth_token).updateCount
-    @log.debug "The latest chunk # is #{count}"
+    @log.debug "The highest remote USN is #{count}"
     count
   end
 
   def max_local_usn
     last_fetched_usn = saved_usns.max
     return 1 unless last_fetched_usn
-    chunk_high_usn_of_file last_fetched_usn
+    local_resource(last_fetched_usn).chunkHighUSN
+  end
+
+  def notebooks
+    thrift_attempt do
+      @log.info "Fetching all notebooks"
+      note_store.listNotebooks(@auth_token)
+    end
+  end
+
+  def notebooks!
+    save :notebooks, notebooks
   end
 
   def chunks!
     start_chunk_number = max_local_usn
     current_chunk = chunk! start_chunk_number
     finish_usn = max_remote_usn
-
     while (current_chunk.chunkHighUSN <  finish_usn) ||
           (current_chunk.chunkHighUSN < (finish_usn = max_remote_usn))
       current_chunk = chunk! current_chunk.chunkHighUSN
+      yield current_chunk if block_given?
       sleep INTERVAL_TIME
     end
-  end
-
-  def chunk!(chunk_number)
-    save chunk_number, chunk(chunk_number)
   end
 
   def chunk(chunk)
@@ -87,11 +94,58 @@ class SyncEvernote
     end
   end
 
-  def save(resource_name, resource)
-    return unless resource
-    SyncSerializer.new(resource_name.to_s, resource, dir: @dir).save!
-    @log.info "Saved resource: #{resource_name}"
-    resource
+  def chunk!(chunk_number)
+    save chunk_number, chunk(chunk_number)
+  end
+
+  def note(guid)
+    thrift_attempt do
+      @log.info "Fetching note: #{guid}"
+      note_store.getNote(@auth_token, guid, true, true, true, true)
+    end
+  end
+
+  def note!(guid)
+    save guid, note(guid)
+  end
+
+  ##
+  # Walk through every note in the SyncChunk chain, check if the local filesystem
+  # version is newer than the sync chunk's note's guid. If it isn't, download it
+  # and remember its ID. Every time a recently-downloaded note ID is seen again
+  # it will be skipped.
+  #
+  def modified_notes(since_usn: 0, &block)
+    return if saved_usns.none?
+    fetched_note_ids = Set.new
+    newer_chunks = saved_usns.select { |chunk_usn| chunk_usn > since_usn }
+    enum = Enumerator.new do |yielder|
+      newer_chunks.each do |chunk_number|
+        notes_in_local_chunk = local_resource(chunk_number).notes || []
+        notes_in_local_chunk.each do |sparse_note|
+          short_id = sparse_note.guid.first 8
+          next if fetched_note_ids.include?(short_id)
+          if local_note_is_stale?(sparse_note.guid, sparse_note.updateSequenceNum)
+            fetched_note = note sparse_note.guid
+            fetched_note_ids << short_id
+            yielder << fetched_note
+            next
+          else
+            @log.debug "Local note is newer for #{short_id}"
+          end
+        end
+      end
+    end
+    enum.each(&block) if block_given?
+    enum
+  end
+
+  def modified_notes!(**args)
+    modified_notes(**args).each do |note|
+      save note.guid, note
+      yield note if block_given?
+      sleep INTERVAL_TIME
+    end
   end
 
   private
@@ -99,8 +153,12 @@ class SyncEvernote
   RATE_LIMIT_REACHED = Evernote::EDAM::Error::EDAMErrorCode::RATE_LIMIT_REACHED
   EDAMSystemException = Evernote::EDAM::Error::EDAMSystemException
 
-  def chunk_high_usn_of_file(chunk_usn_number)
-    SyncSerializer.new(chunk_usn_number, dir: @dir).resource.chunkHighUSN
+  def serializer(*args)
+    SyncSerializer.new(*args, dir: @dir)
+  end
+
+  def local_resource(resource_name)
+    serializer(resource_name).resource
   end
 
   def thrift_attempt(max_retries: MAX_RETRIES)
@@ -108,9 +166,9 @@ class SyncEvernote
     yield
   rescue EDAMSystemException => e
     if e.errorCode == RATE_LIMIT_REACHED
-      mandatory_sleep_duration = e.rateLimitDuration
-      @log.warn "RATE_LIMIT_REACHED: sleeping #{mandatory_sleep_duration} seconds"
-      sleep(mandatory_sleep_duration + 0.5)
+      backpressure = e.rateLimitDuration
+      @log.warn "RATE_LIMIT_REACHED: sleeping #{backpressure} seconds"
+      sleep(backpressure + 0.5)
     else
       @log.warn "EDAMSystemException! #{e.inspect}"
       # abort "Got EDAMSystemException! #{e.to_json}"
@@ -125,6 +183,11 @@ class SyncEvernote
   rescue StopIteration
     @log.error "Failed to execute Thrift operation after #{retries.count} attempts!"
     nil
+  end
+
+  def local_note_is_stale?(guid, latest_known_usn)
+    local_note = local_resource guid
+    local_note.nil? || latest_known_usn > local_note.updateSequenceNum
   end
 
   def files_matching(basename:nil, extension: ".json")
