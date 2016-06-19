@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+require_relative "../src/sync_evernote"
+require "pry"
+sync = SyncEvernote.new(logger: Logger.new(STDOUT))
+Pry.binding_for(sync).pry
