@@ -80,6 +80,8 @@ Output files are first written to tempfiles within the container and then atomic
 
 The Thrift responses contain a lot of binary fields, mainly checksums. All binary data is automatically sanitized to url-safe Base64 in the JSON files. The marshalled Ruby Thrift objects preserve the binary objects.
 
+The docker image has an `ENTRYPOINT`, so if you want a bash shell with the image you will have to specify `--entrypoint bash` instead of the command at the end.
+
 ## Future
 
 Must-haves:

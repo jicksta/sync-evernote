@@ -182,7 +182,7 @@ class SyncEvernote
   end
 
   def default_logger
-    Logger.new(STDOUT).tap { |l| l.sev_threshold = Logger::WARN }
+    Logger.new(STDOUT).tap { |l| l.level = Logger::INFO }
   end
 
 end
