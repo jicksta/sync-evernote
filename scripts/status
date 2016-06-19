@@ -3,11 +3,13 @@ require_relative '../src/sync_evernote'
 
 sync = SyncEvernote.new
 
-total_chunks = sync.max_remote_chunk
-local_chunks = sync.local_chunks.count
+abort "Sync hasn't even begun!" if sync.saved_usns.none?
 
-percent_downloaded = (local_chunks.to_f / total_chunks.to_f) * 100
+furthest_chunk = sync.max_local_usn
+total_chunks   = sync.max_remote_usn
+
+percent_downloaded = 1.0 * furthest_chunk / total_chunks * 100
 
 puts
-puts "The sync is %.2f%% complete. ( %d / %d )" % [percent_downloaded, local_chunks, total_chunks]
+puts "The sync is %.2f%% complete. ( %d / %d )" % [percent_downloaded, furthest_chunk, total_chunks]
 puts

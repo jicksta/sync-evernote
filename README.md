@@ -12,12 +12,6 @@ Files are saved into the `/mnt/sync-evernote/data` volume as JSON and YAML-marsh
 
 This code does not use any write APIs; it only ever reads.
 
-## A note on performance
-
-Unfortunately fetching all of the sync chunks can be slow, mainly due to Evernote's rate limiting. The [`getFilteredSyncChunk`](https://dev.evernote.com/doc/reference/NoteStore.html#Fn_NoteStore_getFilteredSyncChunk) method is used to download the chunks.
-
-I've experienced as bad as a 1500 second (25 minute) forced cool-down delay after fetching only 167 (effectively 0.3%) of my account's chunks in an 11 minute time period with 1.5s delay between requests. A long-term active account (e.g. mine) can have 50,000+ chunks.
-
 ## Getting an Evernote developer token
 
 Visit [this page](https://sandbox.evernote.com/api/DeveloperToken.action) and grab a developer key. By default, the synchronizer does NOT use your Evernote developer sandbox account since sandbox data is rarely useful to fetch and save. You will probably have to [activate your API key](https://dev.evernote.com/support/) to grant access to your personal non-sandbox account.
@@ -85,13 +79,11 @@ Must-haves:
 * Save note bodies
 * Save attachments' data, OCR data
 * Watcher mode: run in the background after full sync polling for newer chunks
-* Auto-detect missing chunks that are missing in the volume
 
 Nice-to-haves:
 
 * Delta event stream that can replay all activity efficiently (using RethinkDB)
-* Support saving to columnar, compressed file format (Parquet with JRuby)
 * Emit MQ messages with [ActiveJob](https://github.com/rails/rails/tree/master/activejob)
 * Support more params as optional ENV variables
-* Prioritize or exclude notebooks from sync
+* SyncChunkFilter overrides to customize what's synced
 * A separate `aws s3 sync` daemon container that links the `data` volume

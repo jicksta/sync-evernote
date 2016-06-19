@@ -7,3 +7,4 @@ sync   = SyncEvernote.new(logger: logger)
 
 sync.notebooks!
 sync.chunks!
+# sync.bodies!

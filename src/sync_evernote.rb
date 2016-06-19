@@ -46,41 +46,32 @@ class SyncEvernote
     save :notebooks, notebooks
   end
 
-  def local_chunks
+  def saved_usns
     files_matching(basename: /^\d+$/).map do |f|
       File.basename(f, ".json").to_i
     end.sort!
   end
 
-  def max_remote_chunk
+  def max_remote_usn
     count = note_store.getSyncState(@auth_token).updateCount
     @log.debug "The latest chunk # is #{count}"
     count
   end
 
-  def newer_chunks
-    max_local_chunk = local_chunks.max || 0
-    max_remote_chunk.downto max_local_chunk.next
-  end
-
-  def older_chunks
-    min_local_chunk = local_chunks.min
-    return [] if min_local_chunk.nil?
-    min_local_chunk.-(1).downto(1)
-  end
-
-  def needed_chunks(&block)
-    enum = Enumerator.new do |yielder|
-      newer_chunks.each { |n| yielder << n } until newer_chunks.none?
-      older_chunks.each { |n| yielder << n }
-    end
-    enum.each(&block) if block_given?
-    enum
+  def max_local_usn
+    last_fetched_usn = saved_usns.max
+    return 1 unless last_fetched_usn
+    chunk_high_usn_of_file last_fetched_usn
   end
 
   def chunks!
-    needed_chunks do |chunk_number|
-      chunk! chunk_number
+    start_chunk_number = max_local_usn
+    current_chunk = chunk! start_chunk_number
+    finish_usn = max_remote_usn
+
+    while (current_chunk.chunkHighUSN <  finish_usn) ||
+          (current_chunk.chunkHighUSN < (finish_usn = max_remote_usn))
+      current_chunk = chunk! current_chunk.chunkHighUSN
       sleep INTERVAL_TIME
     end
   end
@@ -98,7 +89,7 @@ class SyncEvernote
 
   def save(resource_name, resource)
     return unless resource
-    SyncSerializer.new(resource_name.to_s, resource).save_into @dir
+    SyncSerializer.new(resource_name.to_s, resource, dir: @dir).save!
     @log.info "Saved resource: #{resource_name}"
     resource
   end
@@ -107,6 +98,10 @@ class SyncEvernote
 
   RATE_LIMIT_REACHED = Evernote::EDAM::Error::EDAMErrorCode::RATE_LIMIT_REACHED
   EDAMSystemException = Evernote::EDAM::Error::EDAMSystemException
+
+  def chunk_high_usn_of_file(chunk_usn_number)
+    SyncSerializer.new(chunk_usn_number, dir: @dir).resource.chunkHighUSN
+  end
 
   def thrift_attempt(max_retries: MAX_RETRIES)
     retries ||= max_retries.times.each # Use Enumerator to raise a StopIteration after MAX_RETRIES calls to `retries.next`
@@ -182,7 +177,7 @@ class SyncEvernote
   end
 
   def default_logger
-    Logger.new(STDOUT).tap { |l| l.level = Logger::INFO }
+    Logger.new(STDOUT).tap { |l| l.level = Logger::DEBUG }
   end
 
 end

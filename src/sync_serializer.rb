@@ -24,15 +24,16 @@ class SyncSerializer
     Base64.urlsafe_encode64(binary_string)
   end
 
-  def initialize(resource_name, resource)
-    @resource_name = resource_name
-    @resource = resource
+  attr_reader :resource, :resource_name
+  def initialize(resource_name, resource=nil, dir:)
+    @resource_name, @dir = resource_name, dir
+    @resource = resource || unmarshal!
   end
 
-  def save_into(dir)
-    raise ArgumentError unless dir.kind_of? Pathname
-    *files = write_file(dir / json_filename, to_json),
-             write_file(dir / thrift_serialized_filename, to_serialized_thrift)
+  def save!
+    raise ArgumentError unless @dir.kind_of? Pathname
+    *files = write_file(@dir / json_filename, to_json),
+             write_file(@dir / thrift_serialized_filename, to_serialized_thrift)
     files.each(&:move!) # See write_file's singleton method definition
   end
 
@@ -41,7 +42,7 @@ class SyncSerializer
   end
 
   def thrift_serialized_filename
-    "#{@resource_name}.ruby-thrift.yml"
+    "#{@resource_name}.SyncChunk.yml"
   end
 
   def to_json
@@ -53,6 +54,10 @@ class SyncSerializer
   end
 
   private
+
+  def unmarshal!
+    YAML.load_file(@dir / thrift_serialized_filename)
+  end
 
   def write_file(final_path, data)
     Tempfile.new(@resource_name).tap do |tempfile|
