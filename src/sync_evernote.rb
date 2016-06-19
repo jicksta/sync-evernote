@@ -16,15 +16,18 @@ class SyncEvernote
     @user_store_url = "https://#{@evernote_host}/edam/user"
   end
 
-  def confirm!
-    version = [
-      Evernote::EDAM::UserStore::EDAM_VERSION_MAJOR,
-      Evernote::EDAM::UserStore::EDAM_VERSION_MINOR
-    ]
-    client_name = "Evernote EDAMTest (Ruby)"
+  def confirm_version!
+    *version = Evernote::EDAM::UserStore::EDAM_VERSION_MAJOR,
+               Evernote::EDAM::UserStore::EDAM_VERSION_MINOR
 
-    @log.debug "Confirming client version... ( #{version.join('.')} )"
-    abort "Version outdated!" unless user_store.checkVersion(client_name, *version)
+    @log.info "Confirming client version... ( #{version * '.'} )"
+
+    client_name = "Evernote EDAMTest (Ruby)"
+    unless user_store.checkVersion(client_name, *version)
+      message = "This client's version is too old to connect to the Evernote Cloud API! (#{version * '.'})"
+      @log.fatal message
+      abort message
+    end
   end
 
   def notebooks
@@ -40,16 +43,23 @@ class SyncEvernote
   end
 
   def max_remote_chunk
-    note_store.getSyncState(@auth_token).updateCount
+    count = note_store.getSyncState(@auth_token).updateCount
+    @log.debug "The latest chunk # is #{count}"
+    count
+  end
+
+  def newer_chunks
+    max_remote_chunk.downto local_chunks.max.next
+  end
+
+  def older_chunks
+    local_chunks.min.-(1).downto(1)
   end
 
   def needed_chunks(&block)
-    local = local_chunks
-    newer = max_remote_chunk...local.max
-    older = local.min.-(1).downto(1)
     enum = Enumerator.new do |yielder|
-      newer.each { |n| yielder << n }
-      older.each { |n| yielder << n }
+      newer_chunks.each { |n| yielder << n } until newer_chunks.none?
+      older_chunks.each { |n| yielder << n }
     end
     enum.each(&block) if block_given?
     enum
