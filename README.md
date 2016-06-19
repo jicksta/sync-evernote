@@ -6,7 +6,7 @@ Given a Evernote developer token, this Docker container will progressively and i
 * All sync chunks (including notes, notebooks)
 * A simple list of notebooks
 
-Files are saved into the `/mnt/sync-evernote/data` volume as JSON and YAML-marshalled Thrift Ruby objects.
+Files are saved into the `/mnt/sync-evernote/data` volume as JSON and YAML-marshaled Thrift Ruby objects.
 
 *This system does not download note bodies, yet. Coming soon!*
 
@@ -16,7 +16,7 @@ This code does not use any write APIs; it only ever reads.
 
 Unfortunately fetching all of the sync chunks can be slow, mainly due to Evernote's rate limiting. The [`getFilteredSyncChunk`](https://dev.evernote.com/doc/reference/NoteStore.html#Fn_NoteStore_getFilteredSyncChunk) method is used to download the chunks.
 
-I've experienced as bad as a 1500 second (25 minute) forced cooldown delay after fetching only 167 (effectively 0.3%) of my account's chunks in an 11 minute time period with 1.5s delay beteween requests. A long-term active account (e.g. mine) can have 50,000+ chunks.
+I've experienced as bad as a 1500 second (25 minute) forced cool-down delay after fetching only 167 (effectively 0.3%) of my account's chunks in an 11 minute time period with 1.5s delay between requests. A long-term active account (e.g. mine) can have 50,000+ chunks.
 
 ## Getting an Evernote developer token
 
@@ -28,9 +28,7 @@ First, you'll need to [install Docker](https://docs.docker.com/mac/step_one/) if
 
 From the Docker CLI tool, you can run the following command to download and run the worker.
 
-```bash
-docker run --name sync-evernote --rm jicksta/sync-evernote -e "EVERNOTE_DEV_TOKEN=S=s3:U=2…" -v $PWD/data:/mnt/sync-evernote/data
-```
+    docker run --name sync-evernote --rm jicksta/sync-evernote -e "EVERNOTE_DEV_TOKEN=S=s3:U=2…" -v $PWD/data:/mnt/sync-evernote/data
 
 This will auto-pull the image and write `.json` and `.yml` files into the `data` directory of your working dir.
 
@@ -38,13 +36,11 @@ This will auto-pull the image and write `.json` and `.yml` files into the `data`
 
 You just need a standard Ruby and Bundler development environment to run the synchronizer without Docker. On macOS, you can...
 
-```bash
-brew install ruby # Optional, if you already have Ruby installed
-git clone https://github.com/jicksta/sync-evernote
-cd sync-evernote
-bundle install
-ruby entrypoint.rb
-```
+    brew install ruby   # Optional, if you already have Ruby installed
+    git clone https://github.com/jicksta/sync-evernote
+    cd sync-evernote
+    bundle install
+    ruby entrypoint.rb
 
 This is what the output might look like:
 
@@ -78,9 +74,9 @@ You can view the Thrift-generated HTML API documentation [here](https://dev.ever
 
 Output files are first written to tempfiles within the container and then atomically moved into the volume when all tempfiles have been flushed and closed. This lets you rest easier killing the process.
 
-The Thrift responses contain a lot of binary fields, mainly checksums. All binary data is automatically sanitized to url-safe Base64 in the JSON files. The marshalled Ruby Thrift objects preserve the binary objects.
+The Thrift responses contain a lot of binary fields, mainly checksums. All binary data is automatically sanitized to url-safe Base64 in the JSON files. The marshaled Ruby Thrift objects preserve the binary objects.
 
-The docker image has an `ENTRYPOINT`, so if you want a bash shell with the image you will have to specify `--entrypoint bash` instead of the command at the end.
+The docker image has an `ENTRYPOINT`, so if you want a bash shell within the image you will have to specify `--entrypoint bash` instead of the command at the end.
 
 ## Future
 
@@ -89,7 +85,7 @@ Must-haves:
 * Save note bodies
 * Save attachments' data, OCR data
 * Watcher mode: run in the background after full sync polling for newer chunks
-* Auto-detect missing chunks that are missing in the data
+* Auto-detect missing chunks that are missing in the volume
 
 Nice-to-haves:
 
