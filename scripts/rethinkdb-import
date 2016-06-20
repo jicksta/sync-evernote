@@ -1,0 +1,122 @@
+#!/usr/bin/env ruby
+%i[INT TERM].each { |signal| trap(signal) { STDERR.puts "\nReceived #{signal}. Exiting (0)"; exit } }
+require_relative '../src/sync_evernote'
+require 'thread'
+require 'pry'
+require 'rethinkdb'
+include RethinkDB::Shortcuts
+
+LOG = Logger.new(STDOUT)
+
+DB = r.connect \
+  host: 'localhost',
+  port: 28015,
+  #:ssl => "/path/to/ssl?",
+  db: 'evernote'
+
+sync = SyncEvernote.new(logger: LOG)
+
+class RethinkImporter
+
+  UPSERT = {
+    conflict: "update", # Also supports lambda! `-> id, old_doc, new_doc { resolved_doc }`
+    durability: "soft",
+    return_changes: true
+  }
+
+  def initialize(force_recreate=true)
+    recreate_db! if force_recreate
+    @chunks = r.table "chunks"
+    @notes  = r.table "notes"
+    @notebooks = r.table "notebooks"
+    @events = r.table "events"
+  end
+
+  def recreate_db!
+    await { r.db_drop("evernote") } rescue nil # ReqlRuntimeError means it didnt exist
+    await { r.db_create("evernote") }
+
+    await { r.table_create("notes", primary_key: "guid") }
+    await { r.table_create("notebooks", primary_key: "guid") }
+    await { r.table_create("chunks", primary_key: "chunkHighUSN") }
+    await { r.table_create("events", primary_key: "index") }
+  end
+
+  def replace_chunk(chunk)
+    await { @chunks.insert(chunk, UPSERT) }
+  end
+
+  def upsert_notebooks(notebooks)
+    await { @notebooks.insert(notebooks, UPSERT) }
+  end
+
+  def upsert_note(note)
+    await { @notes.insert(note, UPSERT) }
+  end
+
+  def await(&block)
+    instance_exec(&block).run DB # instance_exec makes writing queries a little easier in a Pry CLI
+  end
+
+  def insert_change_event(index, event)
+    LOG.info "Writing change ##{index}"
+    @events.insert({index: index, change: event}, {durability: "soft"}).run(DB)
+  end
+
+  def stream
+    @stream ||= Queue.new.tap do |queue|
+      [@chunks, @notes, @notebooks].each do |table|
+        Thread.new do
+          feed = table.changes \
+            squash: false,
+            include_states: true,
+            include_initial: true,
+            include_types: true
+
+          feed.run(DB).each do |change|
+            queue << change
+          end
+        end
+      end
+    end
+  end
+
+end
+
+importer = RethinkImporter.new(true)
+# Pry.binding_for(importer).pry
+
+
+#### START STREAMING CHANGEFEED EVENTS BEFORE DOING ANY WRITES
+STREAM_THREAD = Thread.new do
+  loop.with_index do |_, index|
+    change = importer.stream.pop
+    importer.insert_change_event(index, change)
+  end
+end
+STREAM_THREAD.abort_on_exception = true
+
+
+#### UPSERT NOTEBOOKS BATCH
+importer.upsert_notebooks(sync.local_resource(:notebooks).as_json)
+
+
+#### UPSERT CHUNKS INTO RETHINKDB
+sync.saved_usns.each do |chunk_usn|
+  chunk = sync.serializer(chunk_usn).as_json
+  deltas = importer.replace_chunk chunk
+  sync.save("deltas_#{chunk_usn}", deltas)
+end
+
+
+#### UPSERT NOTES INTO RETHINKDB
+GUID_REGEX = /^[[:xdigit:]]{8}-([[:xdigit:]]{4}-){3}[[:xdigit:]]{12}$/
+note_files = sync.files_matching(basename: GUID_REGEX)
+note_files.each do |json_note_file|
+  note_json = JSON.parse File.read(json_note_file)
+  deltas = importer.upsert_note note_json
+  note_guid = note_json["guid"]
+  sync.save("deltas_#{note_guid}", deltas)
+end
+
+

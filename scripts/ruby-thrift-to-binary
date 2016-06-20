@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+=begin
+
+Pseudo-code:
+
+protocol = BinaryProtocol
+transport = IOStreamTransport
+loop through all *.ruby-thrift.yml files
+    reify Ruby ::Thrift object
+    open new thrift file
+        write protocol.write(object)
+
+https://github.com/apache/thrift/blob/master/lib/rb/lib/thrift/transport/io_stream_transport.rb
+
+=end
+raise NotImplementedError

@@ -3,3 +3,4 @@ data/*
 log/*.log
 .idea
 *.swp
+rethinkdb_data/*

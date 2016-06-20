@@ -148,18 +148,28 @@ class SyncEvernote
     end
   end
 
-  private
-
-  RATE_LIMIT_REACHED = Evernote::EDAM::Error::EDAMErrorCode::RATE_LIMIT_REACHED
-  EDAMSystemException = Evernote::EDAM::Error::EDAMSystemException
-
   def serializer(*args)
     SyncSerializer.new(*args, dir: @dir)
+  end
+
+  def files_matching(basename:nil, extension: ".json")
+    Dir[@dir / "**/*#{extension}"].select do |filename|
+      next unless filename.ends_with? extension
+      base = File.basename(filename, extension)
+      basename ? base =~ basename : true
+    end
   end
 
   def local_resource(resource_name)
     serializer(resource_name).resource
   end
+
+
+
+  private
+
+  RATE_LIMIT_REACHED = Evernote::EDAM::Error::EDAMErrorCode::RATE_LIMIT_REACHED
+  EDAMSystemException = Evernote::EDAM::Error::EDAMSystemException
 
   def thrift_attempt(max_retries: MAX_RETRIES)
     retries ||= max_retries.times.each # Use Enumerator to raise a StopIteration after MAX_RETRIES calls to `retries.next`
@@ -167,7 +177,8 @@ class SyncEvernote
   rescue EDAMSystemException => e
     if e.errorCode == RATE_LIMIT_REACHED
       backpressure = e.rateLimitDuration
-      @log.warn "RATE_LIMIT_REACHED: sleeping #{backpressure} seconds"
+      @log.warn "RATE_LIMIT_REACHED: waking up at " +
+                backpressure.seconds.from_now.strftime("%c ( %z )")
       sleep(backpressure + 0.5)
     else
       @log.warn "EDAMSystemException! #{e.inspect}"
@@ -190,14 +201,6 @@ class SyncEvernote
     local_note.nil? || latest_known_usn > local_note.updateSequenceNum
   end
 
-  def files_matching(basename:nil, extension: ".json")
-    Dir[@dir / "**/*#{extension}"].select do |filename|
-      next unless filename.ends_with? extension
-      base = File.basename(filename, extension)
-      basename ? base =~ basename : true
-    end
-  end
-
   def user_store
     @user_store ||= thrift_attempt do
       http_transport = Thrift::HTTPClientTransport.new(@user_store_url)
@@ -215,7 +218,7 @@ class SyncEvernote
   end
 
   def note_store_url
-    @note_store_url ||= user_store.getNoteStoreUrl(@auth_token)
+    @note_store_url ||= thrift_attempt { user_store.getNoteStoreUrl(@auth_token) }
   end
 
   def sleep(seconds)

@@ -10,3 +10,4 @@ scripts/build
 scripts/run
 scripts/push
 scripts/logs
+rethinkdb_data/*

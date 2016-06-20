@@ -81,12 +81,13 @@ Must-haves:
 
 * Watcher mode: run in the background after full sync polling for newer chunks
 * Thor-based `entrypoint.rb` for expressing subtasks
+* Delta event stream that can replay all activity efficiently (using RethinkDB)
 
 Nice-to-haves:
 
-* Save binary Thrift files instead of YAML-marshaled Ruby objects
-* Delta event stream that can replay all activity efficiently (using RethinkDB)
+* Save binary Thrift files instead of YAML-marshaled Ruby objects 
 * Emit MQ messages with [ActiveJob](https://github.com/rails/rails/tree/master/activejob)
 * Support more params as optional ENV variables
 * SyncChunkFilter overrides to customize what's synced
-* A separate `aws s3 sync` daemon container that links the `data` volume
+* A separate `aws s3 sync` daemon container that uses a link to the `data` volume
+* Use lower-level Thrift client APIs to avoid buffering in memory while downloading

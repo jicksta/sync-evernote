@@ -35,6 +35,7 @@ class SyncSerializer
     *files = write_file(@dir / json_filename, to_json),
              write_file(@dir / thrift_serialized_filename, to_serialized_thrift)
     files.each(&:move!) # See write_file's singleton method definition
+    self
   end
 
   def json_filename
@@ -53,8 +54,12 @@ class SyncSerializer
     @dir.join(thrift_serialized_filename).file?
   end
 
+  def as_json
+    self.class.sanitize(@resource.as_json)
+  end
+
   def to_json
-    JSON.pretty_generate self.class.sanitize(@resource.as_json)
+    JSON.pretty_generate(as_json)
   end
 
   def to_serialized_thrift

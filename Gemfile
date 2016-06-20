@@ -1,5 +1,7 @@
 source "https://rubygems.org"
 
-gem "evernote-thrift"
 gem "activesupport"
-gem "pry"
+gem "pry" # for scripts/console
+
+gem "evernote-thrift"
+gem "rethinkdb"
