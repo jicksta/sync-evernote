@@ -5,7 +5,7 @@ Given a developer Evernote Cloud API token, this Docker container will progressi
 
 * All un-deleted notebooks
 * Full SyncChunk chain with note and tag data, sans `Note#body`
-* Individual note files by GUID containing all note data, tags, and full note resources
+* Individual note files by GUID containing all note data, tags, and full note resources including `Note#body`
 
 Files are saved into the `/mnt/sync-evernote/data` volume as JSON and YAML-marshaled Thrift Ruby objects.
 
