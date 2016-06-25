@@ -4,3 +4,6 @@ log/*.log
 .idea
 *.swp
 rethinkdb_data/*
+metastore_db
+data.tar*
+derby.log
